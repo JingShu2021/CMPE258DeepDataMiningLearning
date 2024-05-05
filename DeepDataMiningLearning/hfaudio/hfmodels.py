@@ -1,44 +1,46 @@
-from transformers import (AutoConfig, AutoTokenizer, pipeline, AutoProcessor,
-                          AutoFeatureExtractor, AutoModelForAudioClassification, AutoModelForCTC, AutoModelForSpeechSeq2Seq,
-                          SpeechEncoderDecoderModel,
-                            Wav2Vec2Model,
-                            Wav2Vec2Config,
-                            Wav2Vec2ForCTC,
-                            Wav2Vec2BertForCTC,
-                            Wav2Vec2FeatureExtractor,
-                            Wav2Vec2CTCTokenizer,
-                            Wav2Vec2PreTrainedModel,
-                            Wav2Vec2Processor,
-                            Wav2Vec2BertProcessor,
-                            EvalPrediction,
-                            set_seed,)
+import json
+import os
+import re
+import shutil
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Union
+
 #from transformers.models.wav2vec2.modeling_wav2vec2 import WAV2VEC2_ADAPTER_SAFE_FILE
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import CrossEntropyLoss, BCEWithLogitsLoss, MSELoss
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
-import os
-import shutil
-import re
-import json
+from hfdata import create_vocabulary_from_data
+from hfmodels_custom import MyWave2Vec2ClassificationCTC
+from hfutil import TrustRemoteCode, logger, valkey
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
+from transformers import (AutoConfig, AutoFeatureExtractor,
+                          AutoModelForAudioClassification, AutoModelForCTC,
+                          AutoModelForSpeechSeq2Seq, AutoProcessor,
+                          AutoTokenizer, EvalPrediction,
+                          SpeechEncoderDecoderModel, Wav2Vec2BertForCTC,
+                          Wav2Vec2BertProcessor, Wav2Vec2Config,
+                          Wav2Vec2CTCTokenizer, Wav2Vec2FeatureExtractor,
+                          Wav2Vec2ForCTC, Wav2Vec2Model,
+                          Wav2Vec2PreTrainedModel, Wav2Vec2Processor, pipeline,
+                          set_seed)
 
-from DeepDataMiningLearning.hfaudio.hfdata import create_vocabulary_from_data
-from DeepDataMiningLearning.hfaudio.hfutil import valkey, TrustRemoteCode, logger
-from DeepDataMiningLearning.hfaudio.hfmodels_custom import MyWave2Vec2ClassificationCTC
+# from DeepDataMiningLearning.hfaudio.hfdata import create_vocabulary_from_data
+# from DeepDataMiningLearning.hfaudio.hfutil import valkey, TrustRemoteCode, logger
+# from DeepDataMiningLearning.hfaudio.hfmodels_custom import MyWave2Vec2ClassificationCTC
+
 
 unk_token="[UNK]"
 pad_token="[PAD]"
 word_delimiter_token="|"
 
-#https://github.com/huggingface/transformers/blob/v4.36.1/src/transformers/modeling_outputs.py
-from transformers.modeling_outputs import TokenClassifierOutput
 #Optin1: TokenClassifierOutput, Option2: MyClassifierOutput
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, Union
+
 from transformers.file_utils import ModelOutput
-from typing import Dict, List, Optional, Union, Tuple
+#https://github.com/huggingface/transformers/blob/v4.36.1/src/transformers/modeling_outputs.py
+from transformers.modeling_outputs import TokenClassifierOutput
 
 
 @dataclass
@@ -724,6 +726,8 @@ def get_last_checkpoint(folder):
 WAV2VEC2_ADAPTER_PT_FILE = "adapter.{}.bin"
 WAV2VEC2_ADAPTER_SAFE_FILE = "adapter.{}.safetensors"
 from safetensors.torch import save_file as safe_save_file
+
+
 def save_adapterweights(model, target_language, output_dir):
     # make sure that adapter weights are saved seperately
     adapter_file = WAV2VEC2_ADAPTER_SAFE_FILE.format(target_language)
@@ -751,8 +755,8 @@ def load_hfcheckpoint(checkpoint_dir, overwrite_output_dir=False):
 
 
 if __name__ == "__main__":
-    from hfdata import gettestdata
     from datasets import DatasetDict
+    from hfdata import gettestdata
     model_name = "facebook/wav2vec2-xls-r-300m"
     model_args = AudioModelArguments(model_name_or_path=model_name)
     print(model_args.final_dropout)

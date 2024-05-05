@@ -1,51 +1,54 @@
+import sys
 
+sys.path.append('./detection')
+sys.path.append('./hfaudio')
 import argparse
+import datetime
 import json
 import logging
 import math
 import os
 from pathlib import Path
-import datetime
+from time import perf_counter
+
+import albumentations  # pip install albumentations
+import cv2
 import datasets
 import evaluate
+import numpy as np
+import requests
 import torch
+import torchvision
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed
-from datasets import load_dataset, DatasetDict
+from dataset_hf import HFCOCODataset, check_boxsize
+from datasets import DatasetDict, load_dataset
 from huggingface_hub import Repository, create_repo
-from torch.utils.data import DataLoader
+from PIL import Image, ImageDraw
+from sklearn.metrics import classification_report
 from torch import nn
-import torchvision
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.ops import box_convert
-from torchvision.utils import draw_bounding_boxes
+from torchvision.transforms import (CenterCrop, Compose, Lambda, Normalize,
+                                    RandomHorizontalFlip, RandomResizedCrop,
+                                    Resize, ToTensor)
 from torchvision.transforms.functional import pil_to_tensor, to_pil_image
-from torchvision.transforms import (
-    CenterCrop,
-    Compose,
-    Lambda,
-    Normalize,
-    RandomHorizontalFlip,
-    RandomResizedCrop,
-    Resize,
-    ToTensor,
-)
-import requests
-from PIL import Image, ImageDraw
+from torchvision.utils import draw_bounding_boxes
 from tqdm.auto import tqdm
-import numpy as np
-from sklearn.metrics import classification_report
-from transformers import AutoConfig, AutoImageProcessor, AutoModelForImageClassification, \
-    AutoModelForDepthEstimation, AutoModelForObjectDetection, SchedulerType, get_scheduler
-from transformers import DefaultDataCollator, Trainer, TrainingArguments
-from time import perf_counter
-from DeepDataMiningLearning.visionutil import get_device, saveargs2file, load_ImageNetlabels, read_image
-import requests
-import cv2
-import albumentations#pip install albumentations
-from DeepDataMiningLearning.detection.dataset_hf import HFCOCODataset, check_boxsize
-from DeepDataMiningLearning.detection.plotutils import draw2pil, pixel_values2img, draw_objectdetection_predboxes, draw_objectdetection_results
+from transformers import (AutoConfig, AutoImageProcessor,
+                          AutoModelForDepthEstimation,
+                          AutoModelForImageClassification,
+                          AutoModelForObjectDetection, DefaultDataCollator,
+                          SchedulerType, Trainer, TrainingArguments,
+                          get_scheduler)
+
+from detection.plotutils import (draw2pil, draw_objectdetection_predboxes,
+                                 draw_objectdetection_results,
+                                 pixel_values2img)
+from visionutil import (get_device, load_ImageNetlabels, read_image,
+                        saveargs2file)
 
 logger = get_logger(__name__)
 
@@ -268,7 +271,9 @@ def load_visiondataset(data_name=None, split="train", train_dir=None, validation
         classlabel = split_datasets["train"].features[label_column_name]#Sequence class, feature['category','area','box','category'], id
         categories = classlabel.feature["category"]#Classlabel class
         labels = categories.names #list of str names
+        print("labels: ",labels)
         id2label = {index: x for index, x in enumerate(labels, start=0)}
+        print("id2label: ",id2label)
         label2id = {v: k for k, v in id2label.items()}
         dataset_objectdetection_select(split_datasets["train"], data_index=0, id2label=id2label, categories=categories, format=format, \
                                        image_column_name=image_column_name, label_column_name=label_column_name, output_folder="output/")
@@ -787,7 +792,7 @@ def trainmain():
             os.environ['HF_HOME'] = args.data_path
             mycache_dir = args.data_path
         else:
-            mycache_dir = '~/.cache/huggingface/'
+            mycache_dir = '/Users/jingshu/.cache/huggingface/hub'
         print("Cache dir:", mycache_dir)
         device, args.useamp = get_device(gpuid=args.gpuid, useamp=args.useamp)
         saveargs2file(args, trainoutput)
@@ -823,7 +828,7 @@ def trainmain():
         #train_dataset = dataset["train"].map(preprocess_train)
         #eval_dataset = dataset[valkey].map(preprocess_val)
         oneexample = train_dataset[15]
-        print(oneexample.keys()) #'pixel_values'[3, 800, 800], 'pixel_mask'[800,800], 'labels'dict of 'boxes'[2,4] (center_x, center_y, width, height) normalized
+        print("One example of train dataset: ",oneexample.keys()) #'pixel_values'[3, 800, 800], 'pixel_mask'[800,800], 'labels'dict of 'boxes'[2,4] (center_x, center_y, width, height) normalized
         if args.task == "image-classification":
             eval_dataset = dataset[valkey].with_transform(preprocess_val)
             coco = None
@@ -883,7 +888,7 @@ def trainmain():
                 tokenizer=image_processor,
                 data_collator=collate_fn,
             )
-        from DeepDataMiningLearning.hfaudio.hfmodels import load_hfcheckpoint
+        from hfmodels import load_hfcheckpoint
         checkpoint = load_hfcheckpoint(args.resume_from_checkpoint)
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         trainer.save_model()
@@ -945,13 +950,16 @@ def evaluate_dataset(model, val_dataloader, task, metriceval, device, image_proc
             #list of dicts ['scores', 'labels'[100], 'boxes'(100,4)]
             
             id2label = model.config.id2label 
-            #print(batch["labels"][0].keys()) #['size', 'image_id', 'class_labels', 'boxes', 'area', 'iscrowd', 'orig_size']
+            print("*** print id2label ***")
+            print(id2label)
+            print(batch["labels"][0].keys()) #['size', 'image_id', 'class_labels', 'boxes', 'area', 'iscrowd', 'orig_size']
             image = pixel_values2img(pixel_values)
             pred_boxes = outputs['pred_boxes'].cpu().squeeze(dim=0).numpy() #(100,4) normalized (center_x, center_y, width, height)
             prob = nn.functional.softmax(outputs['logits'], -1) #[1, 100, 92]
             scores, labels = prob[..., :-1].max(-1) #[1, 100] [1, 100]
             scores = scores.cpu().squeeze(dim=0).numpy() #(100,)
             labels = labels.cpu().squeeze(dim=0).numpy() #(100,)
+            print("labels: ", labels.shape)
             draw_objectdetection_predboxes(image.copy(), pred_boxes, scores, labels, id2label) #DetrObjectDetectionOutput
             #print(batch["labels"])#list of dicts
             
@@ -974,19 +982,19 @@ def evaluate_dataset(model, val_dataloader, task, metriceval, device, image_proc
 #huggingface-cli login
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a Transformers model on an image classification dataset")
-    parser.add_argument('--traintag', type=str, default="hfimage0309",
+    parser.add_argument('--traintag', type=str, default="hfimage0503",
                     help='Name the current training')
-    parser.add_argument('--hubname', type=str, default="detr-resnet-50_finetuned_coco",
+    parser.add_argument('--hubname', type=str, default="",#"detr-resnet-50_finetuned_coco",
                     help='Name the share name in huggingface hub')
     # parser.add_argument(
     #     "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
     # )
-    parser.add_argument('--trainmode', default="NoTrain", choices=['HFTrainer','CustomTrain', 'NoTrain'], help='Training mode')
+    parser.add_argument('--trainmode', default="HFTrainer", choices=['HFTrainer','CustomTrain', 'NoTrain'], help='Training mode')
     #vocab_path
     parser.add_argument(
         "--model_name_or_path",
         type=str,
-        default="lkk688/detr-resnet-50_finetuned_cppe5", #"emre/detr-resnet-50_finetuned_cppe5", #"output/cppe-5_hfimage0306/epoch_18",#,
+        default="lkk688/detr-resnet-50_finetuned_cppe5", #"emre/detr-resnet-50_finetuned_cppe5", #"output/cppe-5_hfimage0306/epoch_18",#,"/Users/jingshu/.cache/torch/hub/checkpoints/", #"facebook/detr-resnet-50", #
         help="Path to pretrained model or model identifier from huggingface.co/models: facebook/detr-resnet-50, google/vit-base-patch16-224-in21k, ",
     )
     parser.add_argument('--usehpc', default=True, action='store_true',

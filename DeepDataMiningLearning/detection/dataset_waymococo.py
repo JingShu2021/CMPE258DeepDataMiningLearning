@@ -1,15 +1,17 @@
 #ref: https://github.com/lkk688/WaymoObjectDetection/blob/master/MyDetector/torchvision_waymococo_train.py
-import torch
-import torchvision
-import numpy as np
-from torchvision import datasets, transforms
-from PIL import Image
-from glob import glob
-import os
-import math
 import itertools
+import math
+import os
+from glob import glob
+
+import numpy as np
+import torch
 import torch.utils.data as data
+import torchvision
+from PIL import Image
 from pycocotools.coco import COCO
+from torchvision import datasets, transforms
+
 
 class WaymoCOCODataset(torch.utils.data.Dataset):
     def __init__(self, root, annotation, train=True, transform=None):
@@ -156,7 +158,9 @@ class WaymoCOCODataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.ids)
 
-import DeepDataMiningLearning.detection.transforms as T
+import transforms as T
+
+
 def get_transformsimple(train):
     transforms = []
     transforms.append(T.PILToTensor())
@@ -166,6 +170,7 @@ def get_transformsimple(train):
     return T.Compose(transforms)
 
 from pathlib import Path
+
 if __name__ == "__main__":
     # path to your own data and coco file
     data_root = '/data/cmpe249-fa23/WaymoCOCO/'

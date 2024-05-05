@@ -1,26 +1,30 @@
-import torch
-import torchvision
-import numpy as np
-from torchvision import datasets, transforms
-from PIL import Image
-from glob import glob
-import os
-import math
+import sys
+
+sys.path.append('./modules')
+
+import contextlib
+import glob
 import itertools
-import torch.utils.data as data
+import math
+import os
 from copy import deepcopy
+from glob import glob
+from itertools import repeat
+from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import Optional
-from multiprocessing.pool import ThreadPool
-import glob
-import math
+
 import cv2
 import numpy as np
 import psutil
-from itertools import repeat
-import contextlib
+import torch
+import torch.utils.data as data
+import torchvision
+from PIL import Image
+from torchvision import datasets, transforms
 from tqdm import tqdm
-from DeepDataMiningLearning.detection.modules.yolotransform import LetterBox
+from yolotransform import LetterBox
+
 # PyTorch Multi-GPU DDP Constants
 RANK = int(os.getenv('RANK', -1))
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
@@ -543,6 +547,7 @@ class YOLODataset(torch.utils.data.Dataset):
         return len(self.labels)
 
 import yaml
+
 if __name__ == "__main__":
     root='/data/cmpe249-fa23/coco/'
     annotation='/data/cmpe249-fa23/coco/train2017.txt'

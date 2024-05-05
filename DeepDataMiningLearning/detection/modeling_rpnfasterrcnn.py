@@ -1,31 +1,35 @@
+import os
+from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple
 
 import torch
-from torch import nn, Tensor
-from torch.nn import functional as F
-from torchvision.ops import boxes as box_ops, Conv2dNormActivation
-
-#from . import _utils as det_utils
-
-import torchvision.models.detection._utils as det_utils
-from torchvision.models.detection.image_list import ImageList
-
-import os
-from torch import nn
 import torch.nn.functional as F
+import torchvision.models.detection._utils as det_utils
+#from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from backbone import MyBackboneWithFPN
+from detectiontransform import DetectionTransform
+from torch import Tensor, nn
+from torch.nn import functional as F
+from torchvision.models import (get_model, get_model_weights, get_weight,
+                                list_models)
+from torchvision.models.detection.image_list import ImageList
+from torchvision.models.detection.roi_heads import (  # RoIHeads
+    keypointrcnn_inference, keypointrcnn_loss, maskrcnn_inference,
+    maskrcnn_loss)
 #from torchvision.models.detection.transform import GeneralizedRCNNTransform
 #from torchvision.models.detection.generalized_rcnn import GeneralizedRCNN
 #from torchvision.models.detection.anchor_utils import AnchorGenerator
 #from torchvision.models.detection.rpn import RegionProposalNetwork, RPNHead
 #from torchvision.models.resnet import resnet50, ResNet50_Weights
-from torchvision.ops import MultiScaleRoIAlign
-from torchvision.models.detection.roi_heads import maskrcnn_loss, maskrcnn_inference, keypointrcnn_inference, keypointrcnn_loss #RoIHeads
-from collections import OrderedDict
-from torchvision.models import get_model, get_model_weights, get_weight, list_models
-from torchvision.ops.feature_pyramid_network import ExtraFPNBlock, FeaturePyramidNetwork, LastLevelMaxPool
-#from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from DeepDataMiningLearning.detection.backbone import MyBackboneWithFPN
-from DeepDataMiningLearning.detection.detectiontransform import DetectionTransform
+from torchvision.ops import Conv2dNormActivation, MultiScaleRoIAlign
+from torchvision.ops import boxes as box_ops
+from torchvision.ops.feature_pyramid_network import (ExtraFPNBlock,
+                                                     FeaturePyramidNetwork,
+                                                     LastLevelMaxPool)
+
+#from . import _utils as det_utils
+
+
 
 class AnchorGenerator(nn.Module):
     """

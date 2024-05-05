@@ -1,11 +1,14 @@
 #ref: https://github.com/lkk688/myyolov8/blob/main/ultralytics/data/augment.py
+from typing import Dict, List, Optional, Tuple, Union
+
 import cv2
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Union
 import torch
 import torchvision
-from torch import nn, Tensor
-from DeepDataMiningLearning.detection.modules.utils import LOGGER, make_divisible, yolov8_non_max_suppression, non_max_suppression, scale_boxes, xyxy2xywh, xywh2xyxy
+from torch import Tensor, nn
+from utils import (LOGGER, make_divisible, non_max_suppression, scale_boxes,
+                   xywh2xyxy, xyxy2xywh, yolov8_non_max_suppression)
+
 
 # same_shapes = all(x.shape == im[0].shape for x in im)
 # [self.letterbox(image=x) for x in im]

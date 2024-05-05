@@ -1,13 +1,18 @@
-import torchvision
-import torch
-from typing import Dict, List, Optional, Tuple, Union
-from torchvision.models import get_model, get_model_weights, get_weight, list_models
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection import FasterRCNN
-from torchvision.models.detection.rpn import AnchorGenerator
-from DeepDataMiningLearning.detection.modules.yolomodels import create_yolomodel, freeze_yolomodel
-from DeepDataMiningLearning.detection.modeling_rpnfasterrcnn import CustomRCNN
 import os
+import sys
+
+sys.path.append('./modules')
+from typing import Dict, List, Optional, Tuple, Union
+
+import torch
+import torchvision
+from modeling_rpnfasterrcnn import CustomRCNN
+from torchvision.models import (get_model, get_model_weights, get_weight,
+                                list_models)
+from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.models.detection.rpn import AnchorGenerator
+from yolomodels import create_yolomodel, freeze_yolomodel
 
 try:
     from torchinfo import summary

@@ -1,13 +1,13 @@
 #ref: https://github.com/lkk688/MultiModalDetector/blob/master/Myutils/plotresults.py
 import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from matplotlib.patches import Rectangle
 #from utils.plotresults import show_image_bbxyxy
 from matplotlib.pyplot import figure
-from matplotlib.patches import Rectangle
 #%matplotlib inline
-from PIL import Image 
-import matplotlib.pyplot as plt
-import torch
-import numpy as np
+from PIL import Image
 
 INSTANCE_Color = {
     'Unknown':'black', 'Vehicles':'red', 'Pedestrians':'green', 'Cyclists':'purple'
@@ -78,8 +78,9 @@ def matplotlibshow_image_bbxyxy(image, pred_bbox, pred_ids, title, INSTANCE_CATE
 #     plt.show()
 
 from torchvision.io.image import read_image
-from torchvision.utils import draw_bounding_boxes
 from torchvision.transforms.functional import to_pil_image
+from torchvision.utils import draw_bounding_boxes
+
 
 def pil_tonp(img_pil, outputformat='CHW'):
     #convert PIL image to numpy
@@ -92,6 +93,8 @@ def pil_tonp(img_pil, outputformat='CHW'):
     return imgdata
 
 import cv2
+
+
 def npimage_RGBchange(imgdata, fromformat='BGR', toformat='RGB'): 
     #imgdata is HWC format
     im = cv2.cvtColor(imgdata, cv2.COLOR_BGR2RGB)
@@ -215,13 +218,16 @@ def show_imagewithscore_bbxyxy(image, pred_bbox, pred_ids, pred_score, title, IN
     #fig.savefig(f"output/test_frame_{i}.png", dpi=fig.dpi)
 #     plt.show()
 
+import random
+
 #add from https://github.com/lkk688/myyolov7/blob/main/utils/plots.py
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
-import random
+
+
 def color_list():
     # Return first 10 plt colors as (r,g,b) https://stackoverflow.com/questions/51350872/python-from-color-name-to-rgb
     def hex2rgb(h):
@@ -259,7 +265,7 @@ def plot_one_box_PIL(box, img, color=None, label=None, line_thickness=None):
 #added for hfvisionmain
 def pixel_values2img(pixel_values):
     img_np=pixel_values.cpu().squeeze(dim=0).permute(1, 2, 0).numpy() #CHW->HWC 
-    print(img_np.shape) # (800, 1066, 3)
+    print("image shape(np): ",img_np.shape) # (800, 1066, 3)
     img_np = (img_np-np.min(img_np))/(np.max(img_np)-np.min(img_np)) 
     img_np=(img_np * 255).astype(np.uint8)
     image = Image.fromarray(img_np, 'RGB') #pil image
@@ -286,6 +292,9 @@ def draw_objectdetection_predboxes(image, pred_boxes, scores, labels, id2label, 
     width, height = image.size #1066, 800
     draw = ImageDraw.Draw(image, "RGBA")
     box_len = len(pred_boxes)
+    print("lables len: ", len(labels))
+    print(labels)
+    print("box_len: ", box_len)
     for index in range(box_len):
         pred = pred_boxes[index]
         score= scores[index]
@@ -299,6 +308,7 @@ def draw_objectdetection_predboxes(image, pred_boxes, scores, labels, id2label, 
         # x,y,w,h = tuple(box)
         # draw.rectangle((x,y,x+w,y+h), outline='red', width=1)
         class_idx = labels[index]
+        print("class_idx: ",class_idx)
         draw.text((x, y), id2label[class_idx], fill='white')
     if save_path:
         image.save(save_path)
@@ -306,6 +316,7 @@ def draw_objectdetection_predboxes(image, pred_boxes, scores, labels, id2label, 
 def draw_objectdetection_results(image, results, id2label, save_path="output/Imageresultplot.png"): #model.config.id2label
     for score, label, box in zip(results["scores"], results["labels"], results["boxes"]):
         box = [round(i, 2) for i in box.tolist()] #[471.16, 209.09, 536.17, 347.85]#[xmin, ymin, xmax, ymax]
+        print("label.item():",label.item())
         print(
             f"Detected {id2label[label.item()]} with confidence "
             f"{round(score.item(), 3)} at location {box}"
@@ -338,6 +349,7 @@ def draw_annobox2image(image, annotations, id2label=None, save_path="output/Imag
         image.save(save_path)
     return image
 
+from torchvision.ops import box_convert
 #https://albumentations.ai/docs/getting_started/bounding_boxes_augmentation
 #"coco": [x_min, y_min, width, height] in pixels 
 #pascal_voc: [x_min, y_min, x_max, y_max] in pixels
@@ -345,7 +357,8 @@ def draw_annobox2image(image, annotations, id2label=None, save_path="output/Imag
 #yolo: [x_center, y_center, width, height] normalized
 #torchvision 'xyxy' box_convert ['xyxy', 'xywh', 'cxcywh']
 from torchvision.transforms.functional import pil_to_tensor, to_pil_image
-from torchvision.ops import box_convert
+
+
 def draw2pil(image, bbox, category, categories, bbox_format='coco', filepath=None):
     if not torch.is_tensor(image):
         image = pil_to_tensor(image)
