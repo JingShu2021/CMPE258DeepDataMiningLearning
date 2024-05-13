@@ -1,7 +1,7 @@
 import sys
 
-sys.path.append('./detection')
-sys.path.append('./hfaudio')
+sys.path.append('/home/015941146/HW3/CMPE258DeepDataMiningLearning/DeepDataMiningLearning/detection')
+sys.path.append('/home/015941146/HW3/CMPE258DeepDataMiningLearning/DeepDataMiningLearning/hfaudio')
 import argparse
 import datetime
 import json
@@ -22,7 +22,7 @@ import torchvision
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed
-from dataset_hf import HFCOCODataset, check_boxsize
+from detection.dataset_hf import HFCOCODataset, check_boxsize
 from datasets import DatasetDict, load_dataset
 from huggingface_hub import Repository, create_repo
 from PIL import Image, ImageDraw
@@ -54,7 +54,9 @@ logger = get_logger(__name__)
 
 #The PYTORCH_USE_CUDA_DSA environment variable is used to enable the use of the CUDA Direct Storage API (DSA) in PyTorch. DSA is a new API that allows PyTorch to directly access data on the GPU without having to copy it to the CPU first.
 os.environ["PYTORCH_USE_CUDA_DSA"] = "1"
-
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ['TORCH_HOME'] = '/data/cmpe258-sp24/jingshu/torchhome'
+os.environ['HF_HOME'] = '/data/cmpe258-sp24/jingshu/huggingface'
 class myEvaluator:
     def __init__(self, task, useHFevaluator=False, dualevaluator=False, processor=None, coco=None, mycache_dir=None):
         print("useHFevaluator:", useHFevaluator)
@@ -180,6 +182,7 @@ def load_visiondataset(data_name=None, split="train", train_dir=None, validation
         else:
             data_split=None
         # Downloading and loading a dataset from the hub.
+        print("loading dataset to cache_dir: ", mycache_dir)
         raw_datasets = load_dataset(data_name,split=data_split, cache_dir=mycache_dir, verification_mode='no_checks')#, trust_remote_code=True) #ignore_verifications=True
         # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
         # https://huggingface.co/docs/datasets/loading_datasets.html.)
@@ -485,6 +488,7 @@ def get_collate_fn(task, image_processor, label_column_name=None):
 
 #tasks: "depth-estimation", "image-classification", "object-detection"
 def load_visionmodel(model_name_or_path, task="image-classification", load_only=True, labels=None, mycache_dir=None, trust_remote_code=True):
+    print("load model to mycache_dir: ", mycache_dir)
     if load_only:#only load the model
         ignore_mismatched_sizes = False
         config = None
@@ -792,11 +796,9 @@ def trainmain():
             os.environ['HF_HOME'] = args.data_path
             mycache_dir = args.data_path
         else:
-            mycache_dir = '/Users/jingshu/.cache/huggingface/hub'
-        print("Cache dir:", mycache_dir)
+            mycache_dir = '/data/cmpe258-sp24/jingshu/huggingface/hub'
         device, args.useamp = get_device(gpuid=args.gpuid, useamp=args.useamp)
         saveargs2file(args, trainoutput)
-    
     #waits for all processes to finish before continuing
     accelerator.wait_for_everyone()
 
@@ -829,6 +831,9 @@ def trainmain():
         #eval_dataset = dataset[valkey].map(preprocess_val)
         oneexample = train_dataset[15]
         print("One example of train dataset: ",oneexample.keys()) #'pixel_values'[3, 800, 800], 'pixel_mask'[800,800], 'labels'dict of 'boxes'[2,4] (center_x, center_y, width, height) normalized
+        print("pixel_values:",oneexample['pixel_values'].shape)
+        print("pixel_mask:",oneexample['pixel_mask'].shape)
+        print("labels:",oneexample['labels'])
         if args.task == "image-classification":
             eval_dataset = dataset[valkey].with_transform(preprocess_val)
             coco = None
@@ -888,7 +893,7 @@ def trainmain():
                 tokenizer=image_processor,
                 data_collator=collate_fn,
             )
-        from hfmodels import load_hfcheckpoint
+        from hfaudio.hfmodels import load_hfcheckpoint
         checkpoint = load_hfcheckpoint(args.resume_from_checkpoint)
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
         trainer.save_model()
@@ -989,7 +994,7 @@ def parse_args():
     # parser.add_argument(
     #     "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
     # )
-    parser.add_argument('--trainmode', default="HFTrainer", choices=['HFTrainer','CustomTrain', 'NoTrain'], help='Training mode')
+    parser.add_argument('--trainmode', default="CustomTrain", choices=['HFTrainer','CustomTrain', 'NoTrain'], help='Training mode')
     #vocab_path
     parser.add_argument(
         "--model_name_or_path",
@@ -1038,7 +1043,7 @@ def parse_args():
     parser.add_argument(
         "--per_device_train_batch_size",
         type=int,
-        default=16,
+        default=4,
         help="Batch size (per device) for the training dataloader.",
     )
     parser.add_argument(

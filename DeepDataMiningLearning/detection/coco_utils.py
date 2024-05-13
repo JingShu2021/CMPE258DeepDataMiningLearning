@@ -3,7 +3,7 @@ import os
 import torch
 import torch.utils.data
 import torchvision
-import DeepDataMiningLearning.detection.transforms as T
+import transforms as T
 from pycocotools import mask as coco_mask
 from pycocotools.coco import COCO
 
@@ -212,12 +212,16 @@ def get_coco(root, image_set, transforms, mode="instances", use_v2=False, with_m
 
     if use_v2:
         from torchvision.datasets import wrap_dataset_for_transforms_v2
-
+        print("use_v2")
         dataset = torchvision.datasets.CocoDetection(img_folder, ann_file, transforms=transforms)
         target_keys = ["boxes", "labels", "image_id"]
         if with_masks:
             target_keys += ["masks"]
         dataset = wrap_dataset_for_transforms_v2(dataset, target_keys=target_keys)
+        # Extract category names
+        cat_ids = dataset.coco.getCatIds()
+        categories = dataset.coco.loadCats(cat_ids)
+        category_names = {cat['id']: cat['name'] for cat in categories}
     else:
         # TODO: handle with_masks for V1?
         t = [ConvertCocoPolysToMask()]
@@ -226,13 +230,25 @@ def get_coco(root, image_set, transforms, mode="instances", use_v2=False, with_m
         transforms = T.Compose(t)
 
         dataset = CocoDetection(img_folder, ann_file, transforms=transforms)
+        # Extract category names
+        cat_ids = dataset.coco.getCatIds()
+        categories = dataset.coco.loadCats(cat_ids)
+        category_names = {cat['id']: cat['name'] for cat in categories}
 
     if image_set == "train":
         dataset = _coco_remove_images_without_annotations(dataset)
 
     # dataset = torch.utils.data.Subset(dataset, [i for i in range(500)])
-
-    return dataset
+    subset_size =2000
+    
+    if subset_size is not None and subset_size<=len(dataset):
+        # indices = torch.randperm(len(dataset)).tolist()
+        if image_set == "train":
+            dataset = torch.utils.data.Subset(dataset,[i for i in range(int(subset_size))]) # indices[:subset_size]
+        else: 
+            dataset = torch.utils.data.Subset(dataset,[i for i in range(int(subset_size*0.1))]) # indices[:int(subset_size*0.1)]
+                
+    return dataset, category_names
 
 #from DeepDataMiningLearning.detection.modules.utils import xyxy2xywh
 from torchvision.ops import box_convert

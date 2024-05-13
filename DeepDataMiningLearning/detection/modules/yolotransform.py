@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torchvision
 from torch import Tensor, nn
-from utils import (LOGGER, make_divisible, non_max_suppression, scale_boxes,
+from modules.utils import (LOGGER, make_divisible, non_max_suppression, scale_boxes,
                    xywh2xyxy, xyxy2xywh, yolov8_non_max_suppression)
 
 

@@ -4,7 +4,7 @@ import datetime
 import os
 import time
 import numpy as np
-from DeepDataMiningLearning.detection import utils
+import utils
 #from DeepDataMiningLearning.detection.coco_eval import CocoEvaluator
 #from DeepDataMiningLearning.detection.coco_utils import get_coco_api_from_dataset
 from pycocotools.coco import COCO #https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/coco.py
@@ -15,6 +15,7 @@ import copy
 import io
 from contextlib import redirect_stdout
 from tqdm.auto import tqdm
+from PIL import Image,ImageDraw,ImageFont
 
 class CocoEvaluator:
     def __init__(self, coco_gt, iou_types):
@@ -153,6 +154,32 @@ class CocoEvaluator:
                 ]
             )
         return coco_results
+    
+def draw_predictions(image, predictions, labels_map, size=20):
+    """Draw bounding box and label on image."""
+    # Convert tensor image to PIL Image
+    image = image.permute(1, 2, 0).cpu().numpy()
+    image = (image * 255).astype("uint8")
+    image = Image.fromarray(image)
+    
+    # Prepare drawing context
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
+    font = ImageFont.truetype("/data/cmpe258-sp24/jingshu/trainoutput/inference_output/Arial.ttf", size)
+    # Draw each bounding box and label
+    for prediction in predictions:
+        boxes = prediction['boxes'].cpu().numpy()
+        scores = prediction['scores'].cpu().numpy()
+        labels = prediction['labels'].cpu().numpy()
+        
+        for box, score, label in zip(boxes, scores, labels):
+            if score > 0.5: 
+                x1, y1, x2, y2 = box
+                label_text = f"{labels_map[label]}: {score:.2f}"
+                draw.rectangle([(x1, y1), (x2, y2)], outline="red", width=2)
+                draw.text((x1, y1), label_text, fill="blue", font=font)
+    
+    return image
 
 def merge(img_ids, eval_imgs):
     all_img_ids = utils.all_gather(img_ids)
@@ -353,7 +380,8 @@ def simplemodelevaluate(model, data_loader, device):
     return coco_evaluator
 
 @torch.inference_mode()
-def modelevaluate(model, data_loader, device):
+def modelevaluate(model, data_loader, device, anno_result_dir, category_names):
+    os.makedirs(anno_result_dir, exist_ok=True)
     n_threads = torch.get_num_threads()
     # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
@@ -361,14 +389,17 @@ def modelevaluate(model, data_loader, device):
     model.eval()
     metric_logger = utils.MetricLogger(delimiter="  ")
     header = "Test:"
-
+    
     coco = get_coco_api_from_dataset(data_loader.dataset)
     iou_types = utils._get_iou_types(model)
     coco_evaluator = CocoEvaluator(coco, iou_types)
 
+    # sample_image, sample_target = next(iter(data_loader))
+    # print(sample_target)
+    
     for images, targets in metric_logger.log_every(data_loader, 100, header):
         images = list(img.to(device) for img in images)
-
+        
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         model_time = time.time()
@@ -378,11 +409,20 @@ def modelevaluate(model, data_loader, device):
         model_time = time.time() - model_time
 
         res = {target["image_id"]: output for target, output in zip(targets, outputs)}
-        #print("res:", res)
+        # print("res:", res)
         evaluator_time = time.time()
         coco_evaluator.update(res)
         evaluator_time = time.time() - evaluator_time
         metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
+        
+        # Draw and save images
+        for img, target, output in zip(images, targets, outputs):
+            # print(target["image_id"])
+            # print(output)
+            annotated_img = draw_predictions(img, [output], category_names)
+            image_id = target["image_id"]
+            file_path = os.path.join(anno_result_dir, f"{image_id}.png")
+            annotated_img.save(file_path)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -597,9 +637,9 @@ def vis_example(onedetection, imgtensor, filename='result.jpg'):
     # save a image using extension
     im = im.save(filename)
 
-from DeepDataMiningLearning.detection import utils
-from DeepDataMiningLearning.detection.dataset import get_dataset
-from DeepDataMiningLearning.detection.models import create_detectionmodel
+import utils
+from dataset import get_dataset
+from models import create_detectionmodel
 class args:
     data_path = '/data/cmpe249-fa23/coco/' #'/data/cmpe249-fa23/COCOoriginal/' # #'/data/cmpe249-fa23/WaymoCOCO/' #'/data/cmpe249-fa23/coco/'
     annotationfile = '/data/cmpe249-fa23/coco/train2017.txt'

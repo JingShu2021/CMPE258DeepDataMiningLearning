@@ -12,7 +12,7 @@ from torchvision.models import (get_model, get_model_weights, get_weight,
 from torchvision.models.detection import FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.rpn import AnchorGenerator
-from yolomodels import create_yolomodel, freeze_yolomodel
+from modules.yolomodels import create_yolomodel, freeze_yolomodel
 
 try:
     from torchinfo import summary

@@ -10,15 +10,15 @@ import yaml
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
-from DeepDataMiningLearning.detection.modules.block import (AIFI, C1, C2, C3, C3TR, SPP, SPPF, Bottleneck, BottleneckCSP, C2f, C3Ghost, C3x,
+from block import (AIFI, C1, C2, C3, C3TR, SPP, SPPF, Bottleneck, BottleneckCSP, C2f, C3Ghost, C3x,
                     Concat, Conv, Conv2, ConvTranspose, DWConv, DWConvTranspose2d,
                     Focus, GhostBottleneck, GhostConv, HGBlock, HGStem, RepC3, RepConv, MP, SPPCSPC )
-from DeepDataMiningLearning.detection.modules.utils import extract_filename, LOGGER, make_divisible, non_max_suppression, scale_boxes #colorstr, 
-from DeepDataMiningLearning.detection.modules.head import Detect, IDetect, Classify, Pose, RTDETRDecoder, Segment
+from modules.utils import extract_filename, LOGGER, make_divisible, non_max_suppression, scale_boxes #colorstr, 
+from head import Detect, IDetect, Classify, Pose, RTDETRDecoder, Segment
 #Detect, Classify, Pose, RTDETRDecoder, Segment
-from DeepDataMiningLearning.detection.modules.lossv8 import myv8DetectionLoss
-from DeepDataMiningLearning.detection.modules.lossv7 import myv7DetectionLoss
-from DeepDataMiningLearning.detection.modules.anchor import check_anchor_order
+from lossv8 import myv8DetectionLoss
+from lossv7 import myv7DetectionLoss
+from anchor import check_anchor_order
 
 
 
@@ -47,6 +47,28 @@ def yaml_load(file='data.yaml', append_filename=True):
             data['yaml_file'] = str(file)
         return data
 
+def safe_concat(tensors, dim=1):
+    if not tensors:
+        raise ValueError("No tensors to concatenate")
+    sizes = set((t.size(2), t.size(3)) for t in tensors)
+    # # Find the minimum spatial size
+    # min_height = min(t.shape[2] for t in tensors)
+    # min_width = min(t.shape[3] for t in tensors)
+    print("Size: ",sizes)
+    import torch.nn.functional as F
+    if len(sizes) == 1:
+        concatenated_tensor = torch.cat(tensors, dim=dim)
+    else:
+        # Find the minimum spatial size
+        min_height, min_width = min(sizes)
+
+        # Resize tensors to the smallest size in the batch
+        resized_tensors = [F.interpolate(t, size=(min_height, min_width), mode='bilinear', align_corners=False) if (t.size(2), t.size(3)) != (min_height, min_width) else t for t in tensors]
+
+        # Concatenate along the specified dimension
+        concatenated_tensor = torch.cat(resized_tensors, dim=dim)
+    return concatenated_tensor
+    
 #ref: https://github.com/ultralytics/ultralytics/blob/main/ultralytics/nn/tasks.py
 class YoloDetectionModel(nn.Module):
     #scale from nsmlx
@@ -197,7 +219,6 @@ class YoloDetectionModel(nn.Module):
         #         preds, losstensor = preds
         #         detections = self.postprocess(preds, images, original_image_sizes)
         #     return detections, losstensor
-
     
     def _predict_once(self, x, profile=False, visualize=False):
         """
@@ -215,10 +236,16 @@ class YoloDetectionModel(nn.Module):
         y = []
         for m in self.model:
             if m.f != -1:  # if not from previous layer
-                x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+                # x = y[m.f] if isinstance(m.f, int) else [x if j == -1 else y[j] for j in m.f]  # from earlier layers
+                if isinstance(m.f,int):
+                    x = y[m.f]
+                else:
+                    inputs = [x if j == -1 else y[j] for j in m.f]
+                    x = safe_concat(inputs)
             # if profile:
             #     self._profile_one_layer(m, x, dt)
-            
+            print(f"Layer {m.i}, Type of x: {type(x)}, Shape of x: {[xi.shape for xi in x] if isinstance(x, list) else x.shape}")
+
             x = m(x)  # run
 
             y.append(x if m.i in self.save else None)  # save output
@@ -261,7 +288,7 @@ class YoloDetectionModel(nn.Module):
     #     i = (y[-1].shape[-1] // g) * sum(4 ** (nl - 1 - x) for x in range(e))  # indices
     #     y[-1] = y[-1][..., i:]  # small
     #     return y
-
+    
     def init_criterion(self):
         if "v8" in self.modelname:
             return myv8DetectionLoss(self) #v8DetectionLoss(self)
@@ -438,8 +465,8 @@ def load_checkpoint(model, ckpt_file, fp16=False):
     model.half() if fp16 else model.float()
     return model
 
-import DeepDataMiningLearning.detection.transforms as T
-from DeepDataMiningLearning.detection.modules.yolotransform import LetterBox
+import transforms as T
+from modules.yolotransform import LetterBox
 from PIL import Image
 def get_transformsimple(train):
     transforms = []
@@ -473,15 +500,15 @@ def preprocess_img(imagepath, opencvread=True, fp16=False):
 import os
 from collections import OrderedDict
 import cv2
-from DeepDataMiningLearning.detection.modules.yolotransform import YoloTransform
+from modules.yolotransform import YoloTransform
 from torchvision.utils import draw_bounding_boxes
 from torchvision.transforms.functional import to_pil_image
 import torchvision
 
 def create_yolomodel(modelname, num_classes = None, ckpt_file = None, fp16 = False, device = 'cuda:0', scale='n'):
     
-    modelcfg_file=os.path.join('./DeepDataMiningLearning/detection/modules', modelname+'.yaml')
-    cfgPath='./DeepDataMiningLearning/detection/modules/default.yaml'
+    modelcfg_file=os.path.join('./modules', modelname+'.yaml')
+    cfgPath='./modules/default.yaml'
     myyolo = None
     preprocess =None
     classesList = None

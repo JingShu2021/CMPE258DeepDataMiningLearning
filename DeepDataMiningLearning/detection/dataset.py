@@ -148,14 +148,14 @@ class DetectionPresetEval:
 
 def get_dataset(datasetname, is_train, is_val, args):
     if datasetname.lower() == 'coco':
-        ds, num_classes = get_cocodataset(is_train, is_val, args)
+        ds, category_names, num_classes = get_cocodataset(is_train, is_val, args)
     elif datasetname.lower() == 'kitti':
         ds, num_classes = get_kittidataset(is_train, is_val, args)
     elif datasetname.lower() == 'waymococo':
         ds, num_classes = get_waymococodataset(is_train, is_val, args)
     elif datasetname.lower() == 'yolo':
         ds, num_classes = get_yolodataset(is_train, is_val, args)
-    return ds, num_classes
+    return ds, category_names, num_classes
 
 def get_transform(is_train, args):
     if is_train:
@@ -173,7 +173,7 @@ def get_cocodataset(is_train, is_val, args):
     image_set = "train" if is_train else "val"
     num_classes, mode = {"coco": (91, "instances"), "coco_kp": (2, "person_keypoints")}[args.dataset]
     with_masks = False #"mask" in args.model
-    ds = get_coco(
+    ds,category_names = get_coco(
         root=args.data_path,
         image_set=image_set,
         transforms=get_transform(is_train, args),
@@ -181,7 +181,7 @@ def get_cocodataset(is_train, is_val, args):
         use_v2=args.use_v2,
         with_masks=with_masks,
     )
-    return ds, num_classes
+    return ds, category_names, num_classes
 
    
 def get_kittidataset(is_train, is_val, args):

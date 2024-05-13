@@ -10,7 +10,7 @@ from torchvision.models import get_model, get_model_weights, get_weight, list_mo
 from torchvision.io.image import read_image
 from torchvision.utils import draw_bounding_boxes
 from torchvision.transforms.functional import to_pil_image
-from DeepDataMiningLearning.detection.models import create_detectionmodel, get_torchvision_detection_models, load_trained_model
+from models import create_detectionmodel, get_torchvision_detection_models, load_trained_model
 import numpy as np
 
 try:
@@ -220,8 +220,8 @@ def draw_boxes(boxes, classes, labels, image):
     return image
 
 
-from DeepDataMiningLearning.detection.models import load_checkpoint
-from DeepDataMiningLearning.detection.modeling_rpnfasterrcnn import CustomRCNN
+from models import load_checkpoint
+from modeling_rpnfasterrcnn import CustomRCNN
 from torchvision.transforms.functional import pil_to_tensor, to_pil_image
 import torchvision.transforms as transforms
 from PIL import Image, ImageDraw
@@ -254,8 +254,8 @@ def test_Customrcnn():
         col_width=20,
         row_settings=["var_names"]
     ) 
-    device='cuda:3'
-    ckpt_file = "/data/cmpe249-fa23/modelzoo/fasterrcnn_resnet50_fpn_v2.pt"
+    device='cuda:0'
+    ckpt_file = "/data/cmpe258-sp24/jingshu/trainoutput/coco/resnet50_0512/checkpoint.pth"
     #ckpt_file = "/data/cmpe249-fa23/trainoutput/waymococo/0923/model_40.pth" #resnet152
     model = load_checkpoint(myrcnn, ckpt_file, fp16=False)
     model=model.to(device)
@@ -314,7 +314,79 @@ def main(args):
     ckpt_file = '/data/cmpe249-fa23/modelzoo/yolov8n_statedicts.pt'
     device = 'cuda:0'
     multimodel_inference(modelname, imgpath, ckpt_file, device, scale='n')
+    
+import torch
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
+import torchvision.transforms as T
+from PIL import Image, ImageDraw, ImageFont
+import requests
+from io import BytesIO
+import os
+
+def load_image_into_tensor(url, device):
+    response = requests.get(url)
+    image = Image.open(BytesIO(response.content)).convert("RGB")
+    transform = T.Compose([
+        T.ToTensor(),
+    ])
+    tensor = transform(image).to(device)
+    return tensor, image
+
+def draw_boxes(pil_img, boxes, labels, scores,size=20):
+    draw = ImageDraw.Draw(pil_img)
+    # font = ImageFont.load_default()
+    font = ImageFont.truetype("/data/cmpe258-sp24/jingshu/trainoutput/inference_output/Arial.ttf", size)
+    for box, label, score in zip(boxes, labels, scores):
+        if score > 0.4: 
+            box = [round(b) for b in box]
+            draw.rectangle(box, outline='red', width=3)
+            draw.text((box[0], box[1]), f"{label}: {score:.2f}", fill='blue', font=font)
+
+def test_custom_rcnn():
+    # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    # model = fasterrcnn_resnet50_fpn(pretrained=True)
+    # model = model.to(device)
+    # model.eval()
+    model_name = 'resnet50' 
+    num_classes = 91
+    myrcnn=CustomRCNN(backbone_modulename=model_name,trainable_layers=0,num_classes=num_classes,out_channels=256,min_size=800,max_size=1333)
+    summary(model=myrcnn, 
+        input_size=(1, 3, 300, 400), #(32, 3, 224, 224), # make sure this is "input_size", not "input_shape"
+        # col_names=["input_size"], # uncomment for smaller output
+        col_names=["input_size", "output_size", "num_params", "trainable"],
+        col_width=20,
+        row_settings=["var_names"]
+    ) 
+    device='cuda:0'
+    ckpt_file = "/data/cmpe258-sp24/jingshu/trainoutput/coco/resnet50_0512/checkpoint.pth"
+    model = load_checkpoint(myrcnn, ckpt_file, fp16=False)
+    model=model.to(device)
+
+    model.eval()
+
+    urls = ["http://images.cocodataset.org/val2017/000000039769.jpg",
+            "https://unsplash.com/photos/HwBAsSbPBDU/download?force=true&w=640"]
+    
+    output_dir = '/data/cmpe258-sp24/jingshu/trainoutput/inference_output'
+    os.makedirs(output_dir, exist_ok=True)
+    i = 0
+    for url in urls:
+        tensor, pil_img = load_image_into_tensor(url, device)
+        with torch.no_grad():
+            prediction = model([tensor])[0]
+        draw_boxes(pil_img, 
+                   prediction['boxes'].cpu().numpy(), 
+                   prediction['labels'].cpu().numpy(), 
+                   prediction['scores'].cpu().numpy())
+
+        # Save the modified image
+        file_name = os.path.basename(url)
+        output_path = os.path.join(output_dir, "{}.jpg".format(i))
+        i +=1
+        pil_img.save(output_path)
+        print(f"Processed image saved to {output_path}")
+
 
 if __name__ == "__main__":
-    test_Customrcnn()
+    test_custom_rcnn()
     #main(args)

@@ -4,6 +4,9 @@ import os
 import sys
 import time
 
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+os.environ['TORCH_HOME'] = '/data/cmpe258-sp24/jingshu/torchhome/' #setting the environment variable
+
 import torch
 import torch.utils.data
 import torchvision
@@ -52,24 +55,24 @@ def get_args_parser(add_help=True):
 
     parser = argparse.ArgumentParser(description="PyTorch Detection Training", add_help=add_help)
 
-    parser.add_argument("--data-path", default="/data/cmpe249-fa23/WaymoCOCO/", type=str, help="dataset path") #"/data/cmpe249-fa23/WaymoCOCO/"
-    parser.add_argument("--annotationfile", default="", type=str, help="dataset annotion file path, e.g., coco json file") #annotations_train200new.json
+    parser.add_argument("--data_path", default="/data/cmpe258-sp24/jingshu/Data/Dataset/COCO/", type=str, help="dataset path") #"/data/cmpe249-fa23/WaymoCOCO/"
+    parser.add_argument("--annotationfile", default="instances_train2017.json", type=str, help="dataset annotion file path, e.g., coco json file") #annotations_train200new.json
     parser.add_argument(
         "--dataset",
         default="coco", #waymococo
         type=str,
         help="dataset name. Use coco for object detection and instance segmentation and coco_kp for Keypoint detection",
     )
-    parser.add_argument("--model", default="customrcnn_resnet152", type=str, help="model name") #customrcnn_resnet152, fasterrcnn_resnet50_fpn_v2
+    parser.add_argument("--model", default="customrcnn_resnet50", type=str, help="model name") #customrcnn_resnet152, fasterrcnn_resnet50_fpn_v2,customrcnn_resnet50
     parser.add_argument("--trainable", default=0, type=int, help="number of trainable layers (sequence) of backbone")
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
-        "-b", "--batch-size", default=16, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
+        "-b", "--batch-size", default=8, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
     )
-    parser.add_argument("--epochs", default=60, type=int, metavar="N", help="number of total epochs to run")
-    parser.add_argument("--saveeveryepoch", default=4, type=int, metavar="N", help="number of epochs to save")
+    parser.add_argument("--epochs", default=32, type=int, metavar="N", help="number of total epochs to run")
+    parser.add_argument("--saveeveryepoch", default=1, type=int, metavar="N", help="number of epochs to save")
     parser.add_argument(
-        "-j", "--workers", default=4, type=int, metavar="N", help="number of data loading workers (default: 4)"
+        "-j", "--workers", default=2, type=int, metavar="N", help="number of data loading workers (default: 4)"
     )
     parser.add_argument("--opt", default="sgd", type=str, help="optimizer")
     parser.add_argument(
@@ -110,10 +113,10 @@ def get_args_parser(add_help=True):
     parser.add_argument(
         "--lr-gamma", default=0.1, type=float, help="decrease lr by a factor of lr-gamma (multisteplr scheduler only)"
     )
-    parser.add_argument("--print-freq", default=5, type=int, help="print frequency")
-    parser.add_argument("--output-dir", default="/data/cmpe249-fa23/trainoutput", type=str, help="path to save outputs")
-    parser.add_argument("--resume", default="", type=str, help="path of checkpoint") #/data/cmpe249-fa23/trainoutput/kitti/model_4.pth
-    parser.add_argument("--start_epoch", default=0, type=int, help="start epoch")
+    parser.add_argument("--print-freq", default=200, type=int, help="print frequency")
+    parser.add_argument("--output-dir", default="/data/cmpe258-sp24/jingshu/trainoutput", type=str, help="path to save outputs")
+    parser.add_argument("--resume", default="/data/cmpe258-sp24/jingshu/trainoutput/coco/resnet50_0512/checkpoint.pth", type=str, help="path of checkpoint") # /data/cmpe258-sp24/jingshu/trainoutput/coco/0511/checkpoint.pth
+    parser.add_argument("--start_epoch", default=30, type=int, help="start epoch")
     parser.add_argument("--aspect-ratio-group-factor", default=-1, type=int) #3
     parser.add_argument("--rpn-score-thresh", default=None, type=float, help="rpn score threshold for faster-rcnn")
     # parser.add_argument(
@@ -149,7 +152,7 @@ def get_args_parser(add_help=True):
     parser.add_argument("--amp", action="store_true", help="Use torch.cuda.amp for mixed precision training")
     parser.add_argument("--backend", default="PIL", type=str.lower, help="PIL or tensor - case insensitive")
     parser.add_argument("--use-v2", action="store_true", help="Use V2 transforms")
-    parser.add_argument("--expname", default="0315", help="experiment name, create a sub-folder")
+    parser.add_argument("--expname", default="0513", help="experiment name, create a sub-folder")
 
     return parser
 
@@ -170,7 +173,9 @@ def main(args):
         else:
             args.output_dir = os.path.join(args.output_dir, args.dataset)
         utils.mkdir(args.output_dir)
-
+        anno_result_dir = os.path.join(args.output_dir, "anno_result")
+        utils.mkdir(anno_result_dir)
+        
     if args.multigpu:
         utils.init_distributed_mode(args)
         args.distributed = True
@@ -186,9 +191,10 @@ def main(args):
     # Data loading code
     print("Loading data")
 
-    dataset, num_classes = get_dataset(args.dataset, is_train=True, is_val=False, args=args) #get_dataset
-    dataset_test, _ = get_dataset(args.dataset, is_train=False, is_val=True, args=args)
-
+    dataset, category_names ,num_classes = get_dataset(args.dataset, is_train=True, is_val=False, args=args) #get_dataset
+    dataset_test, category_names, _ = get_dataset(args.dataset, is_train=False, is_val=True, args=args)
+    print("num_classes: ", num_classes)
+    print("category_names: ", category_names)
     # split the dataset in train and test set
     # indices = torch.randperm(len(dataset)).tolist()
     # idxsplit=int(len(indices)*0.80)#159948
@@ -279,6 +285,7 @@ def main(args):
         model_without_ddp.load_state_dict(checkpoint["model"])
         #optimizer.load_state_dict(checkpoint["optimizer"])
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        print("resume start_epoch: ", checkpoint["epoch"] + 1)
         args.start_epoch = checkpoint["epoch"] + 1
         if args.amp:
             scaler.load_state_dict(checkpoint["scaler"])
@@ -312,7 +319,7 @@ def main(args):
                 utils.save_on_master(checkpoint, os.path.join(args.output_dir, "checkpoint.pth"))
 
             # evaluate after current epoch
-            modelevaluate(model, data_loader_test, device=device)
+            modelevaluate(model, data_loader_test, device=device, anno_result_dir=anno_result_dir,category_names=category_names)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))

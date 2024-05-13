@@ -9,11 +9,11 @@ from torch.nn.init import constant_, xavier_uniform_
 #import numpy as np
 from copy import copy
 import pandas as pd
-from DeepDataMiningLearning.detection.modules.block import Conv, DFL, Proto, \
+from modules.block import Conv, DFL, Proto, \
                                         DeformableTransformerDecoderLayer, DeformableTransformerDecoder, \
                                         MLP, ImplicitA, ImplicitM
-from DeepDataMiningLearning.detection.modules.tal import make_anchors, dist2bbox
-from DeepDataMiningLearning.detection.modules.utils import bias_init_with_prob, linear_init_, xyxy2xywh, increment_path #, color_list
+from modules.tal import make_anchors, dist2bbox
+from modules.utils import bias_init_with_prob, linear_init_, xyxy2xywh, increment_path #, color_list
 
 class Detections:
     # detections class for YOLOv5 inference results

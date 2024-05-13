@@ -51,7 +51,7 @@ class MyBackboneWithFPN(nn.Module):
         for name, parameter in backbone.named_parameters():
             if all([not name.startswith(layer) for layer in layers_to_train]):
                 parameter.requires_grad_(False)
-
+        print("*** backbone parameters: ",backbone.named_parameters())
         if extra_blocks is None:
             extra_blocks = LastLevelMaxPool()
         
@@ -61,6 +61,7 @@ class MyBackboneWithFPN(nn.Module):
         in_channels_stage2 = backbone.inplanes // 8 #2048//8=256
         #in_channels_list:List[int] number of channels for each feature map that is returned, in the order they are present in the OrderedDict
         in_channels_list = [in_channels_stage2 * 2 ** (i - 1) for i in returned_layers]
+        print("in_channels_list: ", in_channels_list)
         #[256, 512, 1024, 2048]
         # BackboneWithFPN(
         #     backbone, return_layers, in_channels_list, out_channels, extra_blocks=extra_blocks, norm_layer=norm_layer
