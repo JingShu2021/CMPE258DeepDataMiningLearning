@@ -220,7 +220,7 @@ def draw_boxes(boxes, classes, labels, image):
     return image
 
 
-from models import load_checkpoint
+# from models import load_checkpoint
 from modeling_rpnfasterrcnn import CustomRCNN
 from torchvision.transforms.functional import pil_to_tensor, to_pil_image
 import torchvision.transforms as transforms
@@ -269,6 +269,9 @@ def test_Customrcnn():
     url1 = "http://images.cocodataset.org/val2017/000000039769.jpg"
     image_tensorlist, pilimage_list = gettensorfromurls([url1, url2])
     image_tensorlist = [image.to(device) for image in image_tensorlist] #[3, 480, 640] [3, 427, 640]
+    print(len(image_tensorlist))
+    # for img in image_tensorlist:
+    #     print(img.shape)
     predictions = model(image_tensorlist)
     #During testing, it returns list[BoxList] contains additional fields like `scores`, `labels` and `mask` (for Mask R-CNN models).
     print(len(predictions)) #2
@@ -294,6 +297,7 @@ def test_Customrcnn():
 
     # detections, detector_losses = model.roi_heads(features, proposals, images.image_sizes, targets)
     # print(len(detections))
+    # print(detections)
 
 # Construct the argument parser.
 parser = argparse.ArgumentParser()
@@ -322,6 +326,7 @@ from PIL import Image, ImageDraw, ImageFont
 import requests
 from io import BytesIO
 import os
+from modules.yolomodels import load_defaultcfgs
 
 def load_image_into_tensor(url, device):
     response = requests.get(url)
@@ -335,12 +340,39 @@ def load_image_into_tensor(url, device):
 def draw_boxes(pil_img, boxes, labels, scores,size=20):
     draw = ImageDraw.Draw(pil_img)
     # font = ImageFont.load_default()
+    label_map = get_categary_name()
     font = ImageFont.truetype("/data/cmpe258-sp24/jingshu/trainoutput/inference_output/Arial.ttf", size)
     for box, label, score in zip(boxes, labels, scores):
-        if score > 0.4: 
+        if score > 0.7: 
             box = [round(b) for b in box]
+            label_text = f"{label_map[label-1]}: {score:.2f}"
             draw.rectangle(box, outline='red', width=3)
-            draw.text((box[0], box[1]), f"{label}: {score:.2f}", fill='blue', font=font)
+            draw.text((box[0], box[1]), label_text, fill='blue', font=font)
+
+def intersect_dicts(da, db, exclude=()):
+    """Returns a dictionary of intersecting keys with matching shapes, excluding 'exclude' keys, using da values."""
+    return {k: v for k, v in da.items() if k in db and all(x not in k for x in exclude) and v.shape == db[k].shape}
+
+def load_checkpoint(model, ckpt_file, fp16=False):
+    ckpt=torch.load(ckpt_file, map_location='cpu')
+    print(len(ckpt['model'].keys())) 
+    currentmodel_statedict = model.state_dict()
+    print(len(currentmodel_statedict.keys()))
+    csd = intersect_dicts(ckpt['model'], currentmodel_statedict)  # intersect
+    model.load_state_dict(ckpt['model'], strict=False)
+    print(f'Transferred {len(csd)}/{len(model.state_dict())} items from pretrained weights')
+    model.half() if fp16 else model.float()
+    return model
+
+def get_categary_name():
+    cfgPath='./modules/default.yaml'
+    if os.path.exists(cfgPath):
+        DEFAULT_CFG_DICT = load_defaultcfgs(cfgPath)
+        classes=DEFAULT_CFG_DICT['names']
+        # print("Class num: ",len(classes))
+        classesList = list(classes.values())
+        # print(classesList)
+    return classesList
 
 def test_custom_rcnn():
     # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -379,7 +411,7 @@ def test_custom_rcnn():
                    prediction['labels'].cpu().numpy(), 
                    prediction['scores'].cpu().numpy())
 
-        # Save the modified image
+        # Save the annotated image
         file_name = os.path.basename(url)
         output_path = os.path.join(output_dir, "{}.jpg".format(i))
         i +=1
@@ -388,5 +420,6 @@ def test_custom_rcnn():
 
 
 if __name__ == "__main__":
+    # test_Customrcnn()
     test_custom_rcnn()
     #main(args)

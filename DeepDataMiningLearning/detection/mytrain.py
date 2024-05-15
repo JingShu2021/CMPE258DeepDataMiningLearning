@@ -63,13 +63,13 @@ def get_args_parser(add_help=True):
         type=str,
         help="dataset name. Use coco for object detection and instance segmentation and coco_kp for Keypoint detection",
     )
-    parser.add_argument("--model", default="customrcnn_resnet50", type=str, help="model name") #customrcnn_resnet152, fasterrcnn_resnet50_fpn_v2,customrcnn_resnet50
+    parser.add_argument("--model", default="customrcnn_resnet152", type=str, help="model name") #customrcnn_resnet152, fasterrcnn_resnet50_fpn_v2,customrcnn_resnet50
     parser.add_argument("--trainable", default=0, type=int, help="number of trainable layers (sequence) of backbone")
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
         "-b", "--batch-size", default=8, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
     )
-    parser.add_argument("--epochs", default=32, type=int, metavar="N", help="number of total epochs to run")
+    parser.add_argument("--epochs", default=30, type=int, metavar="N", help="number of total epochs to run")
     parser.add_argument("--saveeveryepoch", default=1, type=int, metavar="N", help="number of epochs to save")
     parser.add_argument(
         "-j", "--workers", default=2, type=int, metavar="N", help="number of data loading workers (default: 4)"
@@ -115,8 +115,8 @@ def get_args_parser(add_help=True):
     )
     parser.add_argument("--print-freq", default=200, type=int, help="print frequency")
     parser.add_argument("--output-dir", default="/data/cmpe258-sp24/jingshu/trainoutput", type=str, help="path to save outputs")
-    parser.add_argument("--resume", default="/data/cmpe258-sp24/jingshu/trainoutput/coco/resnet50_0512/checkpoint.pth", type=str, help="path of checkpoint") # /data/cmpe258-sp24/jingshu/trainoutput/coco/0511/checkpoint.pth
-    parser.add_argument("--start_epoch", default=30, type=int, help="start epoch")
+    parser.add_argument("--resume", default="", type=str, help="path of checkpoint") # /data/cmpe258-sp24/jingshu/trainoutput/coco/0511/checkpoint.pth
+    parser.add_argument("--start_epoch", default=0, type=int, help="start epoch")
     parser.add_argument("--aspect-ratio-group-factor", default=-1, type=int) #3
     parser.add_argument("--rpn-score-thresh", default=None, type=float, help="rpn score threshold for faster-rcnn")
     # parser.add_argument(
@@ -152,7 +152,7 @@ def get_args_parser(add_help=True):
     parser.add_argument("--amp", action="store_true", help="Use torch.cuda.amp for mixed precision training")
     parser.add_argument("--backend", default="PIL", type=str.lower, help="PIL or tensor - case insensitive")
     parser.add_argument("--use-v2", action="store_true", help="Use V2 transforms")
-    parser.add_argument("--expname", default="0513", help="experiment name, create a sub-folder")
+    parser.add_argument("--expname", default="resnet152_0513", help="experiment name, create a sub-folder")
 
     return parser
 
